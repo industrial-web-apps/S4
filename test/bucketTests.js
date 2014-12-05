@@ -1,9 +1,17 @@
+var fs = require('fs');
+try {
+    fs.unlinkSync('../buckets.db');
+} catch (e) {}
+
+
+
 var chai = require('chai'),
     bucketManager = require('../lib/buckets.js'),
     expect = chai.expect;
 
-describe('Buckets', function () {
-    before(function (done) {
+describe('Buckets - correct input - ', function () {
+
+    beforeEach(function (done) {
         bucketManager.onReady(done);
     });
 
@@ -15,7 +23,7 @@ describe('Buckets', function () {
         });
     });
 
-    it('should error: bucket already exists', function (done) {
+    it('should error with bucket already exists', function (done) {
         bucketManager.createBucket('test', function (err, bucketId) {
             expect(err.toString().toLowerCase()).to.be.equal('error: bucket already exists');
             expect(bucketId).to.not.exist;
@@ -32,5 +40,15 @@ describe('Buckets', function () {
             });
             done();
         });
+    });
+});
+
+describe('Buckets - wrong inputs - ', function () {
+    beforeEach(function (done) {
+        bucketManager.onReady(done);
+    });
+
+    it('calls onReady without a function', function () {
+        expect(bucketManager.onReady).to.not.throw(Error);
     });
 });
