@@ -31,4 +31,7 @@ node_modules
 .idea/
 
 # databases
-buckets.db
+/dbs/*
+
+# files
+/files/*

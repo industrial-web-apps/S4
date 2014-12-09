@@ -20,10 +20,14 @@
     "async": "^0.9.0",
     "chai": "^1.10.0",
     "filestorage": "^1.0.9",
+    "lodash": "^2.4.1",
     "sqlite3": "^3.0.4"
   },
   "devDependencies": {
+    "fs-extra": "^0.12.0",
     "istanbul": "^0.3.4",
-    "mocha": "^2.0.1"
+    "mocha": "^2.0.1",
+    "mock-req": "^0.1.0",
+    "mock-res": "^0.2.1"
   }
 }

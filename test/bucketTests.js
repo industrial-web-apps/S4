@@ -1,15 +1,10 @@
-var fs = require('fs');
-try {
-    fs.unlinkSync('../buckets.db');
-} catch (e) {}
-
-
-
-var chai = require('chai'),
-    bucketManager = require('../lib/buckets.js'),
+var fse = require('fs-extra'),
+    chai = require('chai'),
+    bucketManager,
     expect = chai.expect;
-
 describe('Buckets - correct input - ', function () {
+
+    before(setup);
 
     beforeEach(function (done) {
         bucketManager.onReady(done);
@@ -25,9 +20,9 @@ describe('Buckets - correct input - ', function () {
 
     it('should error with bucket already exists', function (done) {
         bucketManager.createBucket('test', function (err, bucketId) {
+            expect(err).to.be.instanceOf(Error);
             expect(err.toString().toLowerCase()).to.be.equal('error: bucket already exists');
             expect(bucketId).to.not.exist;
-            expect(err).to.be.instanceOf(Error);
             done();
         });
     });
@@ -52,3 +47,14 @@ describe('Buckets - wrong inputs - ', function () {
         expect(bucketManager.onReady).to.not.throw(Error);
     });
 });
+
+function setup() {
+    try {
+        var dirsToEmpty = ['dbs', 'files'];
+        dirsToEmpty.forEach(function (dir) {
+            fse.removeSync(dir);
+            fse.mkdirSync(dir);
+        });
+    } catch (e) {console.log(e);}
+    bucketManager = require('../lib/buckets.js');
+}
