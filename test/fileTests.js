@@ -30,8 +30,9 @@ describe('Files - correct input - ', function () {
 
     it('reads the file that was just created', function (done) {
         var content = fse.readFileSync('testFile.txt', 'utf8');
-        bucket.getFile(1, function (err, stream) {
+        bucket.getFile(1, function (err, stream, stat) {
             expect(err).to.not.exist;
+            expect(stat.custom.md5).to.be.equal('954c779488b31fdbe52e364fa0a71045');
             var str = '';
             stream.on('data', function (x) {
                 str += x;
@@ -40,6 +41,21 @@ describe('Files - correct input - ', function () {
                 expect(str).to.be.equal(content);
                 done();
             });
+        });
+
+    });
+
+    it('pipes the file to a stream', function (done) {
+        var content = fse.readFileSync('testFile.txt', 'utf8');
+        var stream = new MockRes();
+        bucket.getFileStream(1, stream);
+        var str = '';
+        stream.on('data', function (x) {
+            str += x;
+        });
+        stream.on('end', function () {
+            expect(str).to.be.equal(content);
+            done();
         });
     });
 
