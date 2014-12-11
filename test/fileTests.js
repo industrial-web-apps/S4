@@ -20,9 +20,12 @@ describe('Files - correct input - ', function () {
 
     it('insert into bucket', function (done) {
         var stream = fse.createReadStream('testFile.txt');
-        bucket.insertFile('1234/abcd/testFile.txt', stream, function (err, fileId) {
+        var key = '1234/abcd/testFile.txt';
+        bucket.insertFile(key, stream, function (err, file) {
             expect(err).to.not.exist;
-            expect(fileId).to.be.equal(1);
+            expect(file.fileId).to.be.equal(1);
+            expect(file.rowId).to.be.equal(1);
+            expect(file.key).to.be.equal(key);
             done();
         });
     });
