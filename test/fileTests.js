@@ -6,6 +6,7 @@ var fse = require('fs-extra'),
 
 describe('Files - correct input - ', function () {
     var bucket;
+    var key = '1234/abcd/testFile.txt';
     before(function (done) {
         setup();
         bucketManager.onReady(function () {
@@ -20,7 +21,6 @@ describe('Files - correct input - ', function () {
 
     it('insert into bucket', function (done) {
         var stream = fse.createReadStream('testFile.txt');
-        var key = '1234/abcd/testFile.txt';
         bucket.insertFile(key, stream, function (err, file) {
             expect(err).to.not.exist;
             expect(file.fileId).to.be.equal(1);
@@ -33,7 +33,7 @@ describe('Files - correct input - ', function () {
 
     it('reads the file that was just created', function (done) {
         var content = fse.readFileSync('testFile.txt', 'utf8');
-        bucket.getFile(1, function (err, stream, stat) {
+        bucket.getFile(key, function (err, stream, stat) {
             expect(err).to.not.exist;
             expect(stat.custom.md5).to.be.equal('954c779488b31fdbe52e364fa0a71045');
             var str = '';
@@ -51,7 +51,7 @@ describe('Files - correct input - ', function () {
     it('pipes the file to a stream', function (done) {
         var content = fse.readFileSync('testFile.txt', 'utf8');
         var stream = new MockRes();
-        bucket.getFileStream(1, stream);
+        bucket.pipeFile(key, stream);
         var str = '';
         stream.on('data', function (x) {
             str += x;
@@ -63,14 +63,14 @@ describe('Files - correct input - ', function () {
     });
 
     it('deletes the file', function (done) {
-        bucket.deleteFile(1, function (err) {
+        bucket.deleteFile(key, function (err) {
             expect(err).to.not.exist;
             done();
         });
     });
 
     it('verifies file is gone', function (done) {
-        bucket.getFile(1, function (err, stream) {
+        bucket.getFile(key, function (err, stream) {
             expect(err).to.be.instanceOf(Error);
             expect(err.toString().toLowerCase()).to.be.equal('error: 404: file not found.');
             expect(stream).to.not.exist;
