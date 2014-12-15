@@ -1,6 +1,7 @@
 var fse = require('fs-extra'),
     chai = require('chai'),
     MockRes = require('mock-res'),
+    cleanup = require('../testCleanup.js'),
     bucketManager,
     expect = chai.expect;
 
@@ -8,12 +9,14 @@ describe('Files - correct input - ', function () {
     var bucket;
     var key = '1234/abcd/testFile.txt';
     before(function (done) {
-        setup();
-        bucketManager.onReady(function () {
-            bucketManager.createBucket('test', function () {
-                bucketManager.getBucket('test', function (err, b) {
-                    bucket = b;
-                    done();
+        cleanup(function () {
+            bucketManager = require('../lib/buckets.js');
+            bucketManager.onReady(function () {
+                bucketManager.createBucket('test', function () {
+                    bucketManager.getBucket('test', function (err, b) {
+                        bucket = b;
+                        done();
+                    });
                 });
             });
         });
@@ -85,14 +88,3 @@ describe('Files - correct input - ', function () {
         });
     });
 });
-
-function setup() {
-    try {
-        var dirsToEmpty = ['dbs', 'files'];
-        dirsToEmpty.forEach(function (dir) {
-            fse.removeSync(dir);
-            fse.mkdirSync(dir);
-        });
-    } catch (e) {console.log(e);}
-    bucketManager = require('../lib/buckets.js');
-}

@@ -1,10 +1,13 @@
-var fse = require('fs-extra'),
-    chai = require('chai'),
+var chai = require('chai'),
     bucketManager,
+    cleanup = require('../testCleanup.js'),
     expect = chai.expect;
 describe('Buckets - correct input - ', function () {
 
-    before(setup);
+    before(function (done) {
+        bucketManager = require('../lib/buckets.js');
+        cleanup(done);
+    });
 
     beforeEach(function (done) {
         bucketManager.onReady(done);
@@ -47,14 +50,3 @@ describe('Buckets - wrong inputs - ', function () {
         expect(bucketManager.onReady).to.not.throw(Error);
     });
 });
-
-function setup() {
-    try {
-        var dirsToEmpty = ['dbs', 'files'];
-        dirsToEmpty.forEach(function (dir) {
-            fse.removeSync(dir);
-            fse.mkdirSync(dir);
-        });
-    } catch (e) {console.log(e);}
-    bucketManager = require('../lib/buckets.js');
-}

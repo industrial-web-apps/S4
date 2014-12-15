@@ -78,12 +78,12 @@ function formulateError(opts) {
     var html = "";
     return '<?xml version="1.0" encoding="UTF-8"?>\n' +
         xml({
-           Error: [
-               { Code: opts.code },
-               { Message: opts.message },
-               { RequestId: 'not implemented' },
-               { hostId: 'not implemented' }
-           ]
+            Error: [
+                { Code: opts.code },
+                { Message: opts.message },
+                { RequestId: 'not implemented' },
+                { hostId: 'not implemented' }
+            ]
         });
 }
 
