@@ -25,6 +25,7 @@ describe('Files - correct input - ', function () {
             expect(err).to.not.exist;
             expect(file.fileId).to.be.equal(1);
             expect(file.rowId).to.be.equal(1);
+            expect(file.md5).to.be.equal('954c779488b31fdbe52e364fa0a71045');
             expect(file.key).to.be.equal(key);
             done();
         });
