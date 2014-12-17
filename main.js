@@ -1,6 +1,7 @@
 var express = require('express');
 var app = express();
 var bucketManager = require('./lib/buckets.js');
+var xml = require('xml');
 
 
 /*********************
@@ -166,8 +167,26 @@ app.put('/*/*', function (req, res) {
  * -----------
  * http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#listBuckets-property
  */
+app.get('/', function (req, res) {
+    var info = parseUrl(req.url);
+    bucketManager.onReady(function () {
+        bucketManager.listBuckets(function (err, buckets) {
+            var x = '<?xml version="1.0" encoding="UTF-8"?>\n' +
+            xml({
+                ListAllMyBucketsResult: [
+                    { _attr: { xmlns: "http://s3.amazonaws.com/doc/2006-03-01/" } },
+                    { Buckets: buckets.map(function (b) {
+                        return {
+                            Bucket: [{ Name: b.name}]
+                        };
+                    }) }
+                ]
+            });
+            res.status(200).send(x).end();
 
-// TODO: Implement
+        });
+    });
+});
 
 /**
  * deleteBucket
@@ -230,7 +249,6 @@ app.listen(port);
 
 module.exports = app;
 
-var xml = require('xml');
 function formulateError(opts) {
     var html = "";
     return '<?xml version="1.0" encoding="UTF-8"?>\n' +

@@ -43,6 +43,14 @@ describe('test S3 compatibility', function () {
         });
     });
 
+    it('verifies bucket was created', function (done) {
+        s3.listBuckets(function (err, res) {
+            expect(err).to.not.exist;
+            expect(_.pluck(res.Buckets, 'Name')).to.include(bucketName);
+            done();
+        });
+    });
+
     it('puts a file in a bucket', function (done) {
         s3.putObject(_.extend({
             Body: fs.createReadStream('testFile.txt')
