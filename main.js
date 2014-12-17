@@ -2,7 +2,9 @@ var express = require('express');
 var app = express();
 var bucketManager = require('./lib/buckets.js');
 var xml = require('xml');
+var busboy = require('connect-busboy');
 
+app.use(busboy());
 
 /*********************
  * Object Operations *
@@ -99,8 +101,7 @@ app.get('/*/*', function (req, res) {
                     code: 'Access Denied',
                     message: err.toString()
                 })).end();
-
-            bucket.getFile(info.key, function (err, stream, stat) {
+            bucket.getFile(decodeURIComponent(info.key), function (err, stream, stat) {
                 if (err) {
                     var code = 'Error';
                     if (err.toString() === 'Error: 404: File not found.') {
@@ -120,6 +121,61 @@ app.get('/*/*', function (req, res) {
         });
     });
 });
+
+app.use(function(req, res, next) {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+    next();
+});
+
+/**
+ * postObject ( for HTML forms )
+ * -----------------------------
+ * http://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectPOST.html
+ */
+app.post('/*', function (req, res) {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+    var info = parseUrl(req.url);
+    var form = {};
+    req.busboy.on('field', function(fieldname, val) {
+        form[fieldname] = val;
+    });
+
+    var called = false;
+    req.busboy.on('file', function(fieldname, file) {
+        // only allow single file upload
+        if (called)
+            return;
+        called = true;
+        bucketManager.onReady(function () {
+            bucketManager.getBucket(info.bucket, function (err, bucket) {
+                if (err)
+                    return res.status(403).send(formulateError({
+                        code: 'Access Denied',
+                        message: err.toString()
+                    })).end();
+
+                bucket.insertFile(form.key, file, function (err, file) {
+                    if (err)
+                        return res.status(403).send(formulateError({
+                            code: 'Access Denied',
+                            message: err.toString()
+                        })).end();
+                    var fullUrl = req.protocol + '://' + req.get('host') + req.originalUrl;
+                    res.writeHead(204, {
+                        etag: '"' + file.md5 + '"',
+                        location: fullUrl + '/' + form.key
+                    });
+                    res.end();
+                });
+            });
+        });
+    });
+
+    req.pipe(req.busboy);
+});
+
 
 /**
  * putObject
@@ -268,11 +324,12 @@ function parseUrl (url) {
         .replace(':443', '')
         .replace('http://', '')
         .replace('https://', '')
+        .replace(/\?.*$/, '')
         .replace(/(^\/|\/$)/g, ''); // beginning or ending '/' chars
 
     var pieces = domainRemoved.split('/');
     return {
-        bucket: pieces[0],
-        key: pieces[1]
+        bucket: decodeURIComponent(pieces[0]),
+        key: decodeURIComponent(pieces[1])
     };
 }
