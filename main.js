@@ -2,6 +2,7 @@ var express = require('express');
 var app = express();
 var bucketManager = require('./lib/buckets.js');
 var xml = require('xml');
+var url = require('url');
 var busboy = require('connect-busboy');
 
 app.use(busboy());
@@ -114,6 +115,11 @@ app.get('/*/*', function (req, res) {
                     })).end();
                 }
 
+                var url = require('url');
+                var url_parts = url.parse(req.url, true);
+                var query = url_parts.query;
+                if (query['response-content-disposition'])
+                    res.setHeader('Content-Disposition', query['response-content-disposition']);
                 res.setHeader('content-type', stat.type);
                 res.status(200);
                 stream.pipe(res);
