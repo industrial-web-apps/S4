@@ -91,8 +91,12 @@ describe('test S3 compatibility', function () {
         //formData.append('x-amz-server-side-encryption', 'AES256');
         formData.append("file", fs.createReadStream('testFile.txt'));
 
+
         formData.submit(url + obj2.Bucket, function (err, res) {
+            // NOTE: error doesn't seem to ever be true with this library
+            // even when an error is returned.
             expect(err).to.not.exist;
+            expect(res.statusCode).to.be.equal(204);
             expect(res.headers.location).to.be.equal(url + obj2.Bucket + '/' + obj2.Key);
             expect(res.headers.etag).to.be.equal('"954c779488b31fdbe52e364fa0a71045"');
             done();

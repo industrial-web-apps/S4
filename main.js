@@ -1,11 +1,45 @@
-var express = require('express');
-var app = express();
-var bucketManager = require('./lib/buckets.js');
-var xml = require('xml');
-var url = require('url');
-var busboy = require('connect-busboy');
+var bucketManager = require('./lib/buckets.js'),
+    xml = require('xml'),
+    url = require('url'),
+    crypto = require('crypto'),
+    busboy = require('connect-busboy'),
+    _ = require('lodash'),
+    express = require('express'),
+    app = express();
 
 app.use(busboy());
+
+
+// must be on top so it checks auth on all requests handlers declared after it.
+app.use(function(req, res, next) {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+
+    if (req.method === 'OPTIONS')
+        return next();
+
+    // TODO: would be nice to have a way to parse the form
+    // fields at this point to do the authenication here,
+    // but not parse the files, let the handler do that.
+    // for now Auth is assumed it will be done in the POST handler
+    if (req.method === 'POST')
+        return next();
+
+    var signer = new Signer(req);
+    var auth = signer.getAuthorization({
+        accessKeyId: 'key', // TODO: don't hard code these values
+        secretAccessKey: 'secret'
+    }, new Date());
+
+    if (req.headers.authorization === auth) {
+        return next();
+    }
+
+    return res.status(403).send(formulateError({
+        code: 'Access Denied',
+        message: 'Authorization failed'
+    })).end();
+});
 
 /*********************
  * Object Operations *
@@ -128,20 +162,12 @@ app.get('/*/*', function (req, res) {
     });
 });
 
-app.use(function(req, res, next) {
-    res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
-    next();
-});
-
 /**
  * postObject ( for HTML forms )
  * -----------------------------
  * http://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectPOST.html
  */
 app.post('/*', function (req, res) {
-    res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
     var info = parseUrl(req.url);
     var form = {};
     req.busboy.on('field', function(fieldname, val) {
@@ -154,6 +180,12 @@ app.post('/*', function (req, res) {
         if (called)
             return;
         called = true;
+        if (!allowed(_.extend(form, { bucket: info.bucket })))
+            return res.status(403).send(formulateError({
+                code: 'Access Denied',
+                message: 'Authorization failed'
+            })).end();
+
         bucketManager.onReady(function () {
             bucketManager.getBucket(info.bucket, function (err, bucket) {
                 if (err)
@@ -180,6 +212,13 @@ app.post('/*', function (req, res) {
     });
 
     req.pipe(req.busboy);
+
+    function allowed(info) {
+        var s3Policy = require('s3policy');
+        var myS3Account = new s3Policy(info.AWSAccessKeyId, 'secret');
+        var p = myS3Account.writePolicy(info.key, info.bucket, 60, 10);
+        return info.policy === p.s3PolicyBase64;
+    }
 });
 
 
@@ -289,7 +328,6 @@ app.put('/*', function (req, res) {
             code: 'Access Denied',
             message: 'Bucket name required'
         })).end();
-        return;
     }
 
     bucketManager.onReady(function () {
@@ -338,4 +376,164 @@ function parseUrl (url) {
         bucket: decodeURIComponent(pieces[0]),
         key: decodeURIComponent(pieces[1])
     };
+}
+
+
+function Signer (req) {
+    this.request = req;
+}
+
+_.extend(Signer.prototype, {
+    /**
+     * When building the stringToSign, these sub resource params should be
+     * part of the canonical resource string with their NON-decoded values
+     */
+    subResources: {
+        'acl': 1,
+        'cors': 1,
+        'lifecycle': 1,
+        'delete': 1,
+        'location': 1,
+        'logging': 1,
+        'notification': 1,
+        'partNumber': 1,
+        'policy': 1,
+        'requestPayment': 1,
+        'restore': 1,
+        'tagging': 1,
+        'torrent': 1,
+        'uploadId': 1,
+        'uploads': 1,
+        'versionId': 1,
+        'versioning': 1,
+        'versions': 1,
+        'website': 1
+    },
+
+    // when building the stringToSign, these querystring params should be
+    // part of the canonical resource string with their NON-encoded values
+    responseHeaders: {
+        'response-content-type': 1,
+        'response-content-language': 1,
+        'response-expires': 1,
+        'response-cache-control': 1,
+        'response-content-disposition': 1,
+        'response-content-encoding': 1
+    },
+    getAuthorization: function getAuthorization(credentials, date) {
+        var signature = this.sign(credentials.secretAccessKey, this.stringToSign());
+        return 'AWS ' + credentials.accessKeyId + ':' + signature;
+    },
+    sign: function sign(secret, string) {
+        if (typeof string === 'string') string = new Buffer(string);
+        return crypto.createHmac('sha1', secret).update(string).digest('base64');
+    },
+
+    stringToSign: function stringToSign() {
+        var r = this.request;
+
+        var parts = [];
+        parts.push(r.method);
+        parts.push(r.headers['content-md5'] || '');
+        parts.push(r.headers['content-type'] || '');
+
+        // This is the "Date" header, but we use X-Amz-Date.
+        // The S3 signing mechanism requires us to pass an empty
+        // string for this Date header regardless.
+        parts.push(r.headers['presigned-expires'] || '');
+
+        var headers = this.canonicalizedAmzHeaders();
+        if (headers) parts.push(headers);
+        parts.push(this.canonicalizedResource());
+
+        return parts.join('\n');
+
+    },
+
+    canonicalizedAmzHeaders: function canonicalizedAmzHeaders() {
+
+        var amzHeaders = [];
+
+        _.each(Object.keys(this.request.headers), function (name) {
+            if (name.match(/^x-amz-/i))
+                amzHeaders.push(name);
+        });
+
+        amzHeaders.sort(function (a, b) {
+            return a.toLowerCase() < b.toLowerCase() ? -1 : 1;
+        });
+
+        var parts = [];
+        arrayEach.call(this, amzHeaders, function (name) {
+            parts.push(name.toLowerCase() + ':' + String(this.request.headers[name]));
+        });
+
+        return parts.join('\n');
+
+    },
+
+    canonicalizedResource: function canonicalizedResource() {
+
+        var r = this.request;
+
+        var parts = r.path.split('?');
+        var path = parts[0];
+        var querystring = parts[1];
+
+        var resource = '';
+
+        if (r.virtualHostedBucket)
+            resource += '/' + r.virtualHostedBucket;
+
+        resource += path;
+
+        if (querystring) {
+
+            // collect a list of sub resources and query params that need to be signed
+            var resources = [];
+
+            arrayEach.call(this, querystring.split('&'), function (param) {
+                var name = param.split('=')[0];
+                var value = param.split('=')[1];
+                if (this.subResources[name] || this.responseHeaders[name]) {
+                    var subresource = { name: name };
+                    if (value !== undefined) {
+                        if (this.subResources[name]) {
+                            subresource.value = value;
+                        } else {
+                            subresource.value = decodeURIComponent(value);
+                        }
+                    }
+                    resources.push(subresource);
+                }
+            });
+
+            resources.sort(function (a, b) { return a.name < b.name ? -1 : 1; });
+
+            if (resources.length) {
+
+                querystring = [];
+                _.each(resources, function (resource) {
+                    if (resource.value === undefined)
+                        querystring.push(resource.name);
+                    else
+                        querystring.push(resource.name + '=' + resource.value);
+                });
+
+                resource += '?' + querystring.join('&');
+            }
+
+        }
+
+        return resource;
+
+    }
+});
+
+function arrayEach(array, iterFunction) {
+    for (var idx in array) {
+        if (array.hasOwnProperty(idx)) {
+            var ret = iterFunction.call(this, array[idx], parseInt(idx, 10));
+        }
+    }
 }
