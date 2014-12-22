@@ -80,7 +80,7 @@ describe('test S3 compatibility', function () {
         var formData = new FormData();
         var s3Policy = require('s3policy');
         var myS3Account = new s3Policy(AWS.config.credentials.accessKeyId, AWS.config.credentials.secretAccessKey);
-        var policy = myS3Account.writePolicy(obj2.Key, obj2.Bucket, 60, 10);
+        var policy = myS3Account.writePolicy(obj2.Key, obj2.Bucket, 60, 4096, true);
 
         formData.append("AWSAccessKeyId", AWS.config.credentials.accessKeyId);
         formData.append("policy", policy.s3PolicyBase64);

@@ -216,7 +216,7 @@ app.post('/*', function (req, res) {
     function allowed(info) {
         var s3Policy = require('s3policy');
         var myS3Account = new s3Policy(info.AWSAccessKeyId, 'secret');
-        var p = myS3Account.writePolicy(info.key, info.bucket, 60, 10);
+        var p = myS3Account.writePolicy(info.key, info.bucket, 60, info['content-length'] || 4096, true);
         return info.policy === p.s3PolicyBase64;
     }
 });
