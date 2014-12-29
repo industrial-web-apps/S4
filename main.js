@@ -3,6 +3,7 @@ var bucketManager = require('./lib/buckets.js'),
     xml = require('xml'),
     URL = require('url'),
     crypto = require('crypto'),
+    moment = require('moment'),
     busboy = require('connect-busboy'),
     _ = require('lodash'),
     express = require('express'),
@@ -198,6 +199,8 @@ app.post('/*', function (req, res) {
     var info = parseUrl(req.url);
     var form = {};
     req.busboy.on('field', function(fieldname, val) {
+        if (/content-length/i.test(fieldname))
+            fieldname = fieldname.toLowerCase();
         form[fieldname] = val;
     });
 
@@ -241,9 +244,28 @@ app.post('/*', function (req, res) {
     req.pipe(req.busboy);
 
     function allowed(info) {
-        var myS3Account = new s3Policy(info.AWSAccessKeyId, 'secret');
-        var p = myS3Account.writePolicy(info.key, info.bucket, 60, info['content-length'] || 4096, true);
-        return info.policy === p.s3PolicyBase64;
+        try {
+            var policy = new Buffer(info.policy, 'base64').toString();
+            policy = JSON.parse(policy);
+
+            var x = moment(policy.expiration).toDate();
+            // check if expired.
+            if (x.getTime() < Date.now())
+                return false;
+
+            // ensure policy is correct
+            if (policy.conditions[0].bucket !== info.bucket)
+                return false;
+
+            // check signature
+            var verifySignature = crypto.createHmac("sha1", 'secret')
+                .update(info.policy)
+                .digest('base64');
+
+            return info.signature === verifySignature;
+        } catch (e) {
+             return false;
+        }
     }
 });
 
