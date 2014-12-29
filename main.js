@@ -1,6 +1,7 @@
 var bucketManager = require('./lib/buckets.js'),
+    s3Policy = require('s3policy'),
     xml = require('xml'),
-    url = require('url'),
+    URL = require('url'),
     crypto = require('crypto'),
     busboy = require('connect-busboy'),
     _ = require('lodash'),
@@ -12,6 +13,8 @@ app.use(busboy());
 
 // must be on top so it checks auth on all requests handlers declared after it.
 app.use(function(req, res, next) {
+    res.set('Content-Type', 'text/xml');
+    var info = parseUrl(req.url);
     res.header("Access-Control-Allow-Origin", "*");
     res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
 
@@ -25,14 +28,39 @@ app.use(function(req, res, next) {
     if (req.method === 'POST')
         return next();
 
-    var signer = new Signer(req);
-    var auth = signer.getAuthorization({
+    var user = {
         accessKeyId: 'key', // TODO: don't hard code these values
         secretAccessKey: 'secret'
-    }, new Date());
+    };
+
+    var signer = new Signer(req);
+    var auth = signer.getAuthorization(user, new Date());
 
     if (req.headers.authorization === auth) {
         return next();
+    }
+
+    var inboundURL = URL.parse(req.url, true);
+    if (inboundURL.query.Signature) {
+        var expiry = Number(inboundURL.query.Expires);
+        if (isNaN(expiry) || !isFinite(expiry) || Date.now()/1000 > expiry) {
+            return res.status(403).send(formulateError({
+                code: 'Access Denied',
+                message: 'Policy expired'
+            })).end();
+        }
+
+        var policy = 'GET\n\n\n' + inboundURL.query.Expires + '\n';
+        policy += '/' + info.bucket + '/' + encodeURIComponent(info.key);
+        if (inboundURL.query['response-content-disposition']) {
+            policy += '?response-content-disposition=' +
+                inboundURL.query['response-content-disposition'];
+        }
+
+        var signature = crypto.createHmac("sha1", user.secretAccessKey)
+            .update(policy).digest('base64');
+        if (inboundURL.query.Signature === signature)
+            return next();
     }
 
     return res.status(403).send(formulateError({
@@ -149,8 +177,7 @@ app.get('/*/*', function (req, res) {
                     })).end();
                 }
 
-                var url = require('url');
-                var url_parts = url.parse(req.url, true);
+                var url_parts = URL.parse(req.url, true);
                 var query = url_parts.query;
                 if (query['response-content-disposition'])
                     res.setHeader('Content-Disposition', query['response-content-disposition']);
@@ -214,7 +241,6 @@ app.post('/*', function (req, res) {
     req.pipe(req.busboy);
 
     function allowed(info) {
-        var s3Policy = require('s3policy');
         var myS3Account = new s3Policy(info.AWSAccessKeyId, 'secret');
         var p = myS3Account.writePolicy(info.key, info.bucket, 60, info['content-length'] || 4096, true);
         return info.policy === p.s3PolicyBase64;
