@@ -1,5 +1,4 @@
 var bucketManager = require('./lib/buckets.js'),
-    s3Policy = require('s3policy'),
     xml = require('xml'),
     URL = require('url'),
     crypto = require('crypto'),
@@ -255,6 +254,10 @@ app.post('/*', function (req, res) {
 
             // ensure policy is correct
             if (policy.conditions[0].bucket !== info.bucket)
+                return false;
+
+            var expectedKey = policy.conditions[1] && policy.conditions[1][2];
+            if (expectedKey !== info.key)
                 return false;
 
             // check signature

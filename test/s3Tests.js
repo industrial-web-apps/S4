@@ -2,6 +2,7 @@ var chai = require('chai'),
     fs = require('fs'),
     expect = chai.expect,
     _ = require('lodash'),
+    crypto = require('crypto'),
     proxy = require('proxy-agent'),
     server,
     FormData = require('form-data'),
@@ -76,30 +77,86 @@ describe('test S3 compatibility', function () {
         });
     });
 
-    it('tests HTML form POST object', function (done) {
-        var formData = new FormData();
-        var s3Policy = require('s3policy');
-        var myS3Account = new s3Policy(AWS.config.credentials.accessKeyId, AWS.config.credentials.secretAccessKey);
-        var policy = myS3Account.writePolicy(obj2.Key, obj2.Bucket, 60, 4096, true);
+    describe('test HTML POST object', function () {
+        it('tests that it works with correct input', function (done) {
+            var formData = new FormData();
+            var policy = generateWritePolicy(obj2.Key, obj2.Bucket, 60, 4096, true);
 
-        formData.append("AWSAccessKeyId", AWS.config.credentials.accessKeyId);
-        formData.append("policy", policy.s3PolicyBase64);
-        formData.append("signature", policy.s3Signature);
-        formData.append("key", obj2.Key);
-        formData.append("Content-Type", 'text/plain');
-        formData.append("acl", "private");
-        //formData.append('x-amz-server-side-encryption', 'AES256');
-        formData.append("file", fs.createReadStream('testFile.txt'));
+            formData.append("AWSAccessKeyId", AWS.config.credentials.accessKeyId);
+            formData.append("policy", policy.s3PolicyBase64);
+            formData.append("signature", policy.s3Signature);
+            formData.append("key", obj2.Key);
+            formData.append("Content-Type", 'text/plain');
+            formData.append("acl", "private");
+            formData.append("file", fs.createReadStream('testFile.txt'));
 
 
-        formData.submit(url + obj2.Bucket, function (err, res) {
-            // NOTE: error doesn't seem to ever be true with this library
-            // even when an error is returned.
-            expect(err).to.not.exist;
-            expect(res.statusCode).to.be.equal(204);
-            expect(res.headers.location).to.be.equal(url + obj2.Bucket + '/' + obj2.Key);
-            expect(res.headers.etag).to.be.equal('"954c779488b31fdbe52e364fa0a71045"');
-            done();
+            formData.submit(url + obj2.Bucket, function (err, res) {
+                // NOTE: error doesn't seem to ever be true with this library
+                // even when an error is returned.
+                expect(err).to.not.exist;
+                expect(res.statusCode).to.be.equal(204);
+                expect(res.headers.location).to.be.equal(url + obj2.Bucket + '/' + obj2.Key);
+                expect(res.headers.etag).to.be.equal('"954c779488b31fdbe52e364fa0a71045"');
+                done();
+            });
+        });
+
+        it('tests key different than policy', function (done) {
+            var formData = new FormData();
+            var policy = generateWritePolicy(obj2.Key, obj2.Bucket, 60, 4096, true);
+
+            formData.append("AWSAccessKeyId", AWS.config.credentials.accessKeyId);
+            formData.append("policy", policy.s3PolicyBase64);
+            formData.append("signature", policy.s3Signature);
+            formData.append("key", obj2.Key + 'fake');
+            formData.append("Content-Type", 'text/plain');
+            formData.append("acl", "private");
+            formData.append("file", fs.createReadStream('testFile.txt'));
+
+            formData.submit(url + obj2.Bucket, function (err, res) {
+                expect(err).to.not.exist;
+                expect(res.statusCode).to.be.equal(403); // expect to get a forbidden
+                done();
+            });
+        });
+
+        it('tests expired policy', function (done) {
+            var formData = new FormData();
+            var policy = generateWritePolicy(obj2.Key, obj2.Bucket, -60, 4096, true);
+
+            formData.append("AWSAccessKeyId", AWS.config.credentials.accessKeyId);
+            formData.append("policy", policy.s3PolicyBase64);
+            formData.append("signature", policy.s3Signature);
+            formData.append("key", obj2.Key);
+            formData.append("Content-Type", 'text/plain');
+            formData.append("acl", "private");
+            formData.append("file", fs.createReadStream('testFile.txt'));
+
+            formData.submit(url + obj2.Bucket, function (err, res) {
+                expect(err).to.not.exist;
+                expect(res.statusCode).to.be.equal(403); // expect to get a forbidden
+                done();
+            });
+        });
+
+        it('tests incorrect signature', function (done) {
+            var formData = new FormData();
+            var policy = generateWritePolicy(obj2.Key, obj2.Bucket, 60, 4096, true);
+
+            formData.append("AWSAccessKeyId", AWS.config.credentials.accessKeyId);
+            formData.append("policy", policy.s3PolicyBase64);
+            formData.append("signature", policy.s3Signature + 'blah');
+            formData.append("key", obj2.Key);
+            formData.append("Content-Type", 'text/plain');
+            formData.append("acl", "private");
+            formData.append("file", fs.createReadStream('testFile.txt'));
+
+            formData.submit(url + obj2.Bucket, function (err, res) {
+                expect(err).to.not.exist;
+                expect(res.statusCode).to.be.equal(403); // expect to get a forbidden
+                done();
+            });
         });
     });
 
@@ -143,3 +200,38 @@ describe('test S3 compatibility', function () {
         });
     });
 });
+
+function generateWritePolicy (key, bucket, dateExp, filesize, useEncryption) {
+
+    if (typeof dateExp === 'number') {
+        var tmp = new Date();
+        tmp.setSeconds(tmp.getSeconds() + dateExp);
+        dateExp = tmp;
+    } else if (!(dateExp instanceof Date)) {
+        throw new Error('dateExp expected to be either number of seconds before policy expires, or a date object');
+    }
+
+    var policy = {
+        expiration: dateExp.toISOString(),
+        conditions: [
+            { bucket: bucket },
+            ['eq', '$key', key],
+            { acl: "private" },
+            ['content-length-range', 0, filesize * 1000000],
+            ['starts-with', '$Content-Type', '']
+        ]
+    };
+
+    if(useEncryption) {
+        policy.conditions.push({ 'x-amz-server-side-encryption': 'AES256' });
+    }
+
+    var policyString = JSON.stringify(policy);
+    var policyBase64 = new Buffer(policyString).toString('base64');
+    var signature = crypto.createHmac("sha1", AWS.config.credentials.secretAccessKey).update(policyBase64);
+    return {
+        s3PolicyBase64: policyBase64,
+        s3Signature: signature.digest("base64"),
+        s3Key: AWS.config.credentials.accessKeyId
+    };
+}

@@ -24,7 +24,6 @@
     "filestorage": "^1.0.9",
     "lodash": "^2.4.1",
     "moment": "^2.8.4",
-    "s3policy": "git://github.com/davidworkman9/s3policy.git",
     "sqlite3": "^3.0.4",
     "xml": "^1.0.0"
   },
