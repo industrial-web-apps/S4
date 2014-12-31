@@ -130,13 +130,18 @@ app.head('/*/*', function (req, res) {
                     message: err.toString()
                 })).end();
 
-            bucket.getMD5Hash(info.key, function (err, md5) {
+            bucket.getStats(info.key, function (err, stat) {
                 if (err)
                     return res.status(403).send(formulateError({
                         code: 'Access Denied',
                         message: err.toString()
                     })).end();
-                res.setHeader('ETag', '"' + md5 + '"');
+                var md5 = stat.custom && stat.custom.md5,
+                    length = stat.length || 0;
+                 if (md5)
+                    res.setHeader('ETag', '"' + md5 + '"');
+                if (typeof length === 'number')
+                    res.setHeader('Content-Length', length);
                 res.status(200).end();
             });
         });
@@ -423,9 +428,10 @@ function parseUrl (url) {
         .replace(/(^\/|\/$)/g, ''); // beginning or ending '/' chars
 
     var pieces = domainRemoved.split('/');
+    key = pieces.splice(1).join('/');
     return {
         bucket: decodeURIComponent(pieces[0]),
-        key: decodeURIComponent(pieces[1])
+        key: decodeURIComponent(key)
     };
 }
 

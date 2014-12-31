@@ -52,8 +52,8 @@ describe('Files - correct input - ', function () {
     });
 
     it('checks the md5 hash', function (done) {
-        bucket.getMD5Hash(key, function (err, md5) {
-            expect(md5).to.be.equal('954c779488b31fdbe52e364fa0a71045');
+        bucket.getStats(key, function (err, stat) {
+            expect(stat && stat.custom && stat.custom.md5).to.be.equal('954c779488b31fdbe52e364fa0a71045');
             done();
         });
     });
