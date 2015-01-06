@@ -5,11 +5,13 @@ var bucketManager = require('./lib/buckets.js'),
     moment = require('moment'),
     busboy = require('connect-busboy'),
     _ = require('lodash'),
+    fs = require('fs'),
     express = require('express'),
     app = express();
 
-app.use(busboy());
+var user = JSON.parse(fs.readFileSync('user.json', 'utf8'));
 
+app.use(busboy());
 
 // must be on top so it checks auth on all requests handlers declared after it.
 app.use(function(req, res, next) {
@@ -20,7 +22,6 @@ app.use(function(req, res, next) {
 
     if (req.method === 'OPTIONS')
         return next();
-
     // TODO: would be nice to have a way to parse the form
     // fields at this point to do the authenication here,
     // but not parse the files, let the handler do that.
@@ -28,14 +29,8 @@ app.use(function(req, res, next) {
     if (req.method === 'POST')
         return next();
 
-    var user = {
-        accessKeyId: 'key', // TODO: don't hard code these values
-        secretAccessKey: 'secret'
-    };
-
     var signer = new Signer(req);
     var auth = signer.getAuthorization(user, new Date());
-
     if (req.headers.authorization === auth) {
         return next();
     }
@@ -166,7 +161,7 @@ app.get('/*/*', function (req, res) {
         bucketManager.getBucket(info.bucket, function (err, bucket) {
             if (err)
                 return res.status(403).send(formulateError({
-                    code: 'Access Denied',
+                    code: 'BucketNotFound',
                     message: err.toString()
                 })).end();
             bucket.getFile(decodeURIComponent(info.key), function (err, stream, stat) {
@@ -214,26 +209,42 @@ app.post('/*', function (req, res) {
         if (called)
             return;
         called = true;
-        if (!allowed(_.extend(form, { bucket: info.bucket })))
-            return res.status(403).send(formulateError({
-                code: 'Access Denied',
-                message: 'Authorization failed'
-            })).end();
+
+        if (!allowed(_.extend(form, { bucket: info.bucket }))) {
+            file.on('data', function () {});
+            file.on('end', function () {
+                res.status(403).send(formulateError({
+                    code: 'Access Denied',
+                    message: 'Authorization failed'
+                })).end();
+            });
+            return;
+        }
 
         bucketManager.onReady(function () {
             bucketManager.getBucket(info.bucket, function (err, bucket) {
-                if (err)
-                    return res.status(403).send(formulateError({
-                        code: 'Access Denied',
-                        message: err.toString()
-                    })).end();
-
-                bucket.insertFile(form.key, file, function (err, file) {
-                    if (err)
-                        return res.status(403).send(formulateError({
+                if (err) {
+                    file.on('data', function () {});
+                    file.on('end', function () {
+                        res.status(403).send(formulateError({
                             code: 'Access Denied',
                             message: err.toString()
                         })).end();
+                    });
+                    return;
+                }
+
+                bucket.insertFile(form.key, file, function (err, file) {
+                    if (err) {
+                        file.on('data', function () {});
+                        file.on('end', function () {
+                            res.status(403).send(formulateError({
+                                code: 'Access Denied',
+                                message: err.toString()
+                            })).end();
+                        });
+                        return;
+                    }
                     var fullUrl = req.protocol + '://' + req.get('host') + req.originalUrl;
                     res.writeHead(204, {
                         etag: '"' + file.md5 + '"',
@@ -257,19 +268,22 @@ app.post('/*', function (req, res) {
             if (x.getTime() < Date.now())
                 return false;
 
+            if (user.accessKeyId !== info.AWSAccessKeyId)
+                return false;
+
             // ensure policy is correct
             if (policy.conditions[0].bucket !== info.bucket)
                 return false;
 
             var expectedKey = policy.conditions[1] && policy.conditions[1][2];
+
             if (expectedKey !== info.key)
                 return false;
 
             // check signature
-            var verifySignature = crypto.createHmac("sha1", 'secret')
+            var verifySignature = crypto.createHmac("sha1", user.secretAccessKey)
                 .update(info.policy)
                 .digest('base64');
-
             return info.signature === verifySignature;
         } catch (e) {
              return false;
@@ -428,7 +442,7 @@ function parseUrl (url) {
         .replace(/(^\/|\/$)/g, ''); // beginning or ending '/' chars
 
     var pieces = domainRemoved.split('/');
-    key = pieces.splice(1).join('/');
+    var key = pieces.splice(1).join('/');
     return {
         bucket: decodeURIComponent(pieces[0]),
         key: decodeURIComponent(key)
