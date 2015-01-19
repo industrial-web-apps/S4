@@ -234,20 +234,17 @@ app.post('/*', function (req, res) {
                     return;
                 }
 
-                bucket.insertFile(form.key, file, function (err, file) {
+                bucket.insertFile(form.key, file, function (err, fileStat) {
                     if (err) {
-                        file.on('data', function () {});
-                        file.on('end', function () {
-                            res.status(403).send(formulateError({
-                                code: 'Access Denied',
-                                message: err.toString()
-                            })).end();
-                        });
+                        res.status(403).send(formulateError({
+                            code: 'Access Denied',
+                            message: err.toString()
+                        })).end();
                         return;
                     }
                     var fullUrl = req.protocol + '://' + req.get('host') + req.originalUrl;
                     res.writeHead(204, {
-                        etag: '"' + file.md5 + '"',
+                        etag: '"' + fileStat.md5 + '"',
                         location: fullUrl + '/' + form.key
                     });
                     res.end();
