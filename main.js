@@ -164,7 +164,7 @@ app.get('/*/*', function (req, res) {
                     code: 'BucketNotFound',
                     message: err.toString()
                 })).end();
-            bucket.getFile(decodeURIComponent(info.key), function (err, stream, stat) {
+            bucket.getFile(info.key, function (err, stream, stat) {
                 if (err) {
                     var code = 'Error';
                     if (err.toString() === 'Error: 404: File not found.') {
