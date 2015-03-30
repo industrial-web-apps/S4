@@ -34,6 +34,18 @@ describe('Files - correct input - ', function () {
         });
     });
 
+    it('list the bucket', function (done) {
+        bucket.listFiles(function (err, files) {
+            expect(err).to.not.exist;
+            expect(files.length).to.be.equal(1);
+            expect(files[0].fileId).to.be.equal(1);
+            expect(files[0].rowid).to.be.equal(1);
+            expect(files[0].md5).to.be.equal('954c779488b31fdbe52e364fa0a71045');
+            expect(files[0].key).to.be.equal(key);
+            expect(files[0].length).to.be.equal(34);
+            done();
+        });
+    });
 
     it('reads the file that was just created', function (done) {
         var content = fse.readFileSync('testFile.txt', 'utf8');

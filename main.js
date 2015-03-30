@@ -23,7 +23,7 @@ app.use(function(req, res, next) {
     if (req.method === 'OPTIONS')
         return next();
     // TODO: would be nice to have a way to parse the form
-    // fields at this point to do the authenication here,
+    // fields at this point to do the authentication here,
     // but not parse the files, let the handler do that.
     // for now Auth is assumed it will be done in the POST handler
     if (req.method === 'POST')
@@ -409,6 +409,64 @@ app.put('/*', function (req, res) {
         });
     });
 });
+
+
+/***************************
+ *  More Object Operations *
+ * *************************
+ *  These need to be here otherwise things to get defined in the right order
+ */
+
+/**
+ *  listObjects
+ *  -----------
+ *  http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#listObjects-property
+ */
+app.get('/*', function (req, res) {
+    var info = parseUrl(req.url);
+    res.set('Content-Type', 'text/xml');
+    if (!info.bucket) {
+        return res.status(403).send(formulateError({
+            code: 'Access Denied',
+            message: 'Bucket name required'
+        })).end();
+    }
+    bucketManager.onReady(function () {
+        bucketManager.getBucket(info.bucket, function (err, bucket) {
+            if (err)
+                return res.status(403).send(formulateError({
+                    code: 'BucketNotFound',
+                    message: err.toString()
+                })).end();
+            bucket.listFiles(function(err, files) {
+                var x = '<?xml version="1.0" encoding="UTF-8"?>\n' +
+                    xml({
+                        ListBucketResult: [
+                            { _attr: { xmlns: "http://s3.amazonaws.com/doc/2006-03-01/" } },
+                            { Name: bucket.name },
+                            { Prefix: '' },
+                            { Marker: '' },
+                            { MaxKeys: '' },
+                            { IsTruncated: false }
+                        ].concat(files.map(function (b) {
+                            return {
+                                Contents: [
+                                    { Key: b.key },
+                                    { ETag: '"' + b.md5 + '"' },
+                                    { LastModified: new Date(b.stamp).toISOString() },
+                                    { Size: b.length },
+                                    { StorageClass: 'STANDARD'}
+                                ]
+                            };
+                        }))
+                    });
+                res.status(200).send(x).end();
+            });
+        });
+    });
+});
+
+
 
 // Webs server setup
 var port = process.env.PORT || 7000;
