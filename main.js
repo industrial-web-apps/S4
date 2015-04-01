@@ -74,7 +74,7 @@ app.use(function(req, res, next) {
  * ------------
  * http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#deleteObject-property
  */
-app.delete('/*/*', function (req, res) {
+app.delete(/\/.+\/.+/, function (req, res) {
     var info = parseUrl(req.url);
     res.set('Content-Type', 'text/xml');
     if (!info.bucket) {
@@ -108,7 +108,7 @@ app.delete('/*/*', function (req, res) {
  * ----------
  * http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#headObject-property
  */
-app.head('/*/*', function (req, res) {
+app.head(/\/.+\/.+/, function (req, res) {
     var info = parseUrl(req.url);
     res.set('Content-Type', 'text/xml');
     if (!info.bucket) {
@@ -148,7 +148,7 @@ app.head('/*/*', function (req, res) {
  *  ---------
  *  http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#getObject-property
  */
-app.get('/*/*', function (req, res) {
+app.get(/\/.+\/.+/, function (req, res) {
     var info = parseUrl(req.url);
     res.set('Content-Type', 'text/xml');
     if (!info.bucket) {
@@ -182,6 +182,8 @@ app.get('/*/*', function (req, res) {
                 if (query['response-content-disposition'])
                     res.setHeader('Content-Disposition', query['response-content-disposition']);
                 res.setHeader('content-type', stat.type);
+                res.setHeader('content-length', stat.length);
+                res.setHeader('etag', stat.custom.md5);
                 res.status(200);
                 stream.pipe(res);
             });
@@ -294,7 +296,7 @@ app.post('/*', function (req, res) {
  * ---------
  * http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#putObject-property
  */
-app.put('/*/*', function (req, res) {
+app.put(/\/.+\/.+/, function (req, res) {
     var info = parseUrl(req.url);
     res.set('Content-Type', 'text/xml');
     if (!info.bucket) {
