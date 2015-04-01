@@ -69,6 +69,17 @@ describe('test S3 compatibility', function () {
         });
     });
 
+    it('lists objects in a bucket', function (done) {
+        s3.listObjects(_.extend({
+            Bucket: bucketName
+        }), function (err, res) {
+            expect(err).to.not.exist;
+            expect(res.Contents[0].ETag).to.be.equal('"954c779488b31fdbe52e364fa0a71045"');
+            expect(res.Contents[0].Size).to.be.equal(34);
+            done();
+        });
+    });
+
     it('retrieve a file', function (done) {
         s3.getObject(obj, function (err, res) {
             expect(err).to.not.exist;
