@@ -13,6 +13,12 @@ var user = JSON.parse(fs.readFileSync('user.json', 'utf8'));
 
 app.use(busboy());
 
+process.on('uncaughtException', function (err) {
+    console.log('=================');
+    console.log(err.stack);
+    console.log('=================');
+});
+
 // must be on top so it checks auth on all requests handlers declared after it.
 app.use(function(req, res, next) {
     res.set('Content-Type', 'text/xml');
@@ -183,7 +189,7 @@ app.get(/\/.+\/.+/, function (req, res) {
                     res.setHeader('Content-Disposition', query['response-content-disposition']);
                 res.setHeader('content-type', stat.type);
                 res.setHeader('content-length', stat.length);
-                res.setHeader('etag', stat.custom.md5);
+                res.setHeader('etag', stat.custom && stat.custom.md5);
                 res.status(200);
                 stream.pipe(res);
             });
