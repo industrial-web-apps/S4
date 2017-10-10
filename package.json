@@ -29,7 +29,7 @@
     "xml": "^1.0.0"
   },
   "devDependencies": {
-    "aws-sdk": "^2.1.0",
+    "aws-sdk": "2.7.21",
     "istanbul": "^0.3.4",
     "mocha": "^2.0.1",
     "mock-req": "^0.1.0",
