@@ -7,6 +7,8 @@ var bucketManager = require('./lib/buckets.js'),
     _ = require('lodash'),
     fs = require('fs'),
     express = require('express'),
+    AWS = require('aws-sdk');
+    V4Signer = require('aws-sdk/lib/signers/v4');
     app = express();
 
 var user = JSON.parse(fs.readFileSync('user.json', 'utf8'));
@@ -35,10 +37,27 @@ app.use(function(req, res, next) {
     if (req.method === 'POST')
         return next();
 
-    var signer = new Signer(req);
-    var auth = signer.getAuthorization(user, new Date());
-    if (req.headers.authorization === auth) {
-        return next();
+    if (req.headers.authorization.startsWith('AWS key:')) {
+        var signer = new Signer(req);
+        var auth = signer.getAuthorization(user, new Date());
+        if (req.headers.authorization === auth)
+            return next();
+    } else if (req.headers.authorization.startsWith('AWS4-HMAC-SHA256')) {
+        var signer = new V4Signer({
+            method: req.method,
+            headers: {
+                host: req.headers.host,
+                'x-amz-content-sha256': req.headers['x-amz-content-sha256'],
+                'x-amz-date': req.headers['x-amz-date'],
+            },
+            pathname () { return req.path; },
+            search () { return ''; },
+            region: 'us-east-1',
+        }, 's3');
+        const datetime = AWS.util.date.iso8601(new Date()).replace(/[:\-]|\.\d{3}/g, '');
+        signer.isPresigned = () => true;
+        if (req.headers.authorization === signer.authorization(user, datetime))
+            return next();
     }
 
     var inboundURL = URL.parse(req.url, true);
@@ -506,6 +525,8 @@ function parseUrl (url) {
 
     var pieces = domainRemoved.split('/');
     var key = pieces.splice(1).join('/');
+    if (pieces[0].endsWith('.'))
+        pieces[0] = pieces[0].substring(0, pieces[0].length - 1);
     return {
         bucket: decodeURIComponent(pieces[0]),
         key: decodeURIComponent(key)
