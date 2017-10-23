@@ -37,27 +37,29 @@ app.use(function(req, res, next) {
     if (req.method === 'POST')
         return next();
 
-    if (req.headers.authorization.startsWith('AWS key:')) {
-        var signer = new Signer(req);
-        var auth = signer.getAuthorization(user, new Date());
-        if (req.headers.authorization === auth)
-            return next();
-    } else if (req.headers.authorization.startsWith('AWS4-HMAC-SHA256')) {
-        var signer = new V4Signer({
-            method: req.method,
-            headers: {
-                host: req.headers.host,
-                'x-amz-content-sha256': req.headers['x-amz-content-sha256'],
-                'x-amz-date': req.headers['x-amz-date'],
-            },
-            pathname () { return req.path; },
-            search () { return ''; },
-            region: 'us-east-1',
-        }, 's3');
-        const datetime = AWS.util.date.iso8601(new Date()).replace(/[:\-]|\.\d{3}/g, '');
-        signer.isPresigned = () => true;
-        if (req.headers.authorization === signer.authorization(user, datetime))
-            return next();
+    if (req.headers.authorization) {
+        if (req.headers.authorization.startsWith('AWS key:')) {
+            var signer = new Signer(req);
+            var auth = signer.getAuthorization(user, new Date());
+            if (req.headers.authorization === auth)
+                return next();
+        } else if (req.headers.authorization.startsWith('AWS4-HMAC-SHA256')) {
+            var signer = new V4Signer({
+                method: req.method,
+                headers: {
+                    host: req.headers.host,
+                    'x-amz-content-sha256': req.headers['x-amz-content-sha256'],
+                    'x-amz-date': req.headers['x-amz-date'],
+                },
+                pathname() { return req.path; },
+                search() { return ''; },
+                region: 'us-east-1',
+            }, 's3');
+            const datetime = AWS.util.date.iso8601(new Date()).replace(/[:\-]|\.\d{3}/g, '');
+            signer.isPresigned = () => true;
+            if (req.headers.authorization === signer.authorization(user, datetime))
+                return next();
+        }
     }
 
     var inboundURL = URL.parse(req.url, true);
