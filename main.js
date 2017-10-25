@@ -44,13 +44,20 @@ app.use(function(req, res, next) {
             if (req.headers.authorization === auth)
                 return next();
         } else if (req.headers.authorization.startsWith('AWS4-HMAC-SHA256')) {
+            const expectedHeaders = {
+                host: req.headers.host,
+                'x-amz-content-sha256': req.headers['x-amz-content-sha256'],
+                'x-amz-date': req.headers['x-amz-date'],
+            };
+
+            if (req.headers['x-amz-acl'])
+                expectedHeaders['x-amz-acl'] = req.headers['x-amz-acl'];
+            if (req.headers['x-amz-server-side-encryption'])
+                expectedHeaders['x-amz-server-side-encryption'] = req.headers['x-amz-server-side-encryption'];
+
             var signer = new V4Signer({
                 method: req.method,
-                headers: {
-                    host: req.headers.host,
-                    'x-amz-content-sha256': req.headers['x-amz-content-sha256'],
-                    'x-amz-date': req.headers['x-amz-date'],
-                },
+                headers: expectedHeaders,
                 pathname() { return req.path; },
                 search() { return ''; },
                 region: 'us-east-1',
