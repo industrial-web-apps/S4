@@ -17,25 +17,25 @@
   },
   "homepage": "https://github.com/industrial-web-apps/S4",
   "dependencies": {
-    "aws-sdk": "^2.132.0",
     "async": "^0.9.0",
+    "aws-sdk": "^2.132.0",
     "chai": "^1.10.0",
     "connect-busboy": "0.0.2",
     "express": "^4.10.5",
     "filestorage": "^1.2.0",
-    "lodash": "^2.4.1",
-    "moment": "^2.8.4",
-    "sqlite3": "^3.0.4",
     "fs-extra": "^0.12.0",
+    "lodash": "^4.17.15",
+    "moment": "^2.24.0",
+    "sqlite3": "^4.1.1",
     "xml": "^1.0.0"
   },
   "devDependencies": {
     "form-data": "^0.2.0",
-    "istanbul": "^0.3.4",
-    "mocha": "^2.0.1",
+    "istanbul": "^0.4.5 ",
+    "mocha": "^6.2.2",
     "mock-req": "^0.1.0",
     "mock-res": "^0.2.1",
-    "proxy-agent": "^1.1.0",
-    "supertest": "^0.15.0"
+    "proxy-agent": "^3.1.1",
+    "supertest": "^4.0.2"
   }
 }
