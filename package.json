@@ -35,7 +35,7 @@
     "mocha": "^6.2.2",
     "mock-req": "^0.1.0",
     "mock-res": "^0.2.1",
-    "proxy-agent": "^3.1.1",
+    "proxy-agent": "^5.0.0",
     "supertest": "^4.0.2"
   }
 }
