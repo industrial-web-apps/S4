@@ -21,7 +21,7 @@
     "aws-sdk": "^2.132.0",
     "chai": "^1.10.0",
     "connect-busboy": "0.0.2",
-    "express": "^4.10.5",
+    "express": "^4.17.3",
     "filestorage": "^1.2.0",
     "fs-extra": "^0.12.0",
     "lodash": "^4.17.15",
